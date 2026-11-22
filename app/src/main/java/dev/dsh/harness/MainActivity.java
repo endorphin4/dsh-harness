@@ -74,7 +74,7 @@ public class MainActivity extends Activity {
         Life.note(this, "MainActivity.onCreate saved=" + (saved != null));
         epLoadEvents();
         writeAppVersion();
-        askIgnoreBattery();
+        // 电池豁免推迟到页面起来后再申请（见 loadUrl 之后）
 
         // 引擎被看门狗重新拉起（升级完 / 重启脚本踢了它）之后，WebView 还抱着已经断掉的旧连接 ——
         // 这里注册一次性回调，由 EngineService 在拉起成功后调用，直接重新加载首页（cookie 还在）。
@@ -97,6 +97,8 @@ public class MainActivity extends Activity {
                             WebView v = web;
                             if (v == null) return;
                             loaded = true;
+                  ui.postDelayed(this::askIgnoreBattery, 6000);
+                  ui.postDelayed(() -> checkBrokenPlugins(w), 12000);
                             String u = "http://127.0.0.1:" + Engine.port() + "/" + (fresh != null ? "?token=" + fresh : "");
                             v.loadUrl(u);
                             ui.postDelayed(() -> checkPageAlive(v, u, 0), 6000);
@@ -352,6 +354,35 @@ public class MainActivity extends Activity {
         } catch (Throwable e) {
             Log.e(TAG, "boot 失败", e);
             fail(root, "启动失败：" + e);
+        }
+    }
+
+    /** 每次启动只尝试一次的「插件加载失败」自愈。 */
+    private boolean pluginRepairTried;
+
+    /**
+     * 页面报「Failed to load plugins / invalid plugin」时自救一次。
+     *
+     * 成因：载荷里 dsh-app-release 的客户端 bundle 返回 { exports: {} }，不符合 DSH
+     * 客户端插件契约，整页插件加载失败（2026-11-22 新设备实测）。
+     * 修法：摘掉该客户端 bundle，停引擎让看门狗重启，onRestarted 会自动重载页面。
+     */
+    private void checkBrokenPlugins(final WebView w) {
+        if (pluginRepairTried) return;
+        try {
+            w.evaluateJavascript(
+                    "(()=>{try{return (document.body&&document.body.innerText)||''}catch(e){return ''}})()",
+                    v -> {
+                        String txt = v == null ? "" : v.toLowerCase();
+                        if (!txt.contains("failed to load plugins") && !txt.contains("invalid plugin")) return;
+                        pluginRepairTried = true;
+                        Life.note(this, "页面报告插件加载失败，开始自愈");
+                        String r = Profile.disableBrokenClient(this);
+                        Life.note(this, "插件自愈：" + r + "；重启引擎");
+                        try { Engine.stop(); } catch (Throwable e) { Life.note(this, "自愈重启失败：" + e); }
+                    });
+        } catch (Throwable e) {
+            Life.note(this, "插件自检失败：" + e);
         }
     }
 
