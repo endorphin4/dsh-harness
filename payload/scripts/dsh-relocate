@@ -1,0 +1,166 @@
+#!/data/data/com.termux/files/usr/bin/python3
+"""把硬编码的 Termux 前缀换成等长替身路径。
+
+等长的原因：ELF 字符串表偏移不能变，所以 OLD/NEW 必须一样长。
+
+用法：
+  dsh-relocate <tree>                      # 全树扫，跳过 mtime 过滤
+  dsh-relocate <tree> --since <stamp>      # 只处理比 stamp 新的文件
+  dsh-relocate <tree> --list <file>        # 只处理清单里列出的文件（dpkg 安装用）
+
+--list 的每一行可以是被 dpkg 记录下来的 /data/data/com.termux/... 路径，
+也可以是真实路径；两种都会映射到本 App 前缀下处理。
+"""
+import os
+import sys
+
+OLD = b"/data/data/com.termux/files/usr"
+NEW = b"/data/data/dev.dsh.harness/usr0"
+OLD_HOME = b"/data/data/com.termux/files/home"
+NEW_HOME = b"/data/data/dev.dsh.harness/home0"
+
+PREFIX_OLD = b"/data/data/com.termux/files/usr"
+PREFIX_NEW = b"/data/data/dev.dsh.harness/files/usr"
+HOME_OLD = b"/data/data/com.termux/files/home"
+HOME_NEW = b"/data/data/dev.dsh.harness/files/home"
+
+MAX = 96 * 1024 * 1024
+SKIP = {".git", "__pycache__"}
+
+
+def map_path(line):
+    """把 .list 里的 com.termux 路径映射到本 App 前缀下的真实路径。"""
+    p = line.rstrip(b"\n")
+    if p.startswith(PREFIX_OLD):
+        p = PREFIX_NEW + p[len(PREFIX_OLD):]
+    elif p.startswith(HOME_OLD):
+        p = HOME_NEW + p[len(HOME_OLD):]
+    return p.decode("utf-8", "surrogateescape")
+
+
+def rewrite(path, pairs):
+    try:
+        st = os.lstat(path)
+        if not os.path.isfile(path) or os.path.islink(path):
+            return 0
+        if st.st_size == 0 or st.st_size > MAX:
+            return 0
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return 0
+    if not any(o in data for o, _ in pairs):
+        return 0
+    new = data
+    for o, nn in pairs:
+        new = new.replace(o, nn)
+    try:
+        tmp = path + ".rl"
+        with open(tmp, "wb") as f:
+            f.write(new)
+        os.chmod(tmp, st.st_mode)
+        os.utime(tmp, (st.st_atime, st.st_mtime))  # 保持 mtime，dpkg 的 --since 才可信
+        os.replace(tmp, path)
+        return 1
+    except OSError as e:
+        print(f"[relocate] 失败 {path}: {e}", file=sys.stderr)
+        return 0
+
+
+def merge_into(src, dst):
+    """把 src 目录里的内容合并进 dst；同名文件按 mtime 新的胜出。"""
+    moved = 0
+    for name in os.listdir(src):
+        s = os.path.join(src, name)
+        d = os.path.join(dst, name)
+        try:
+            if os.path.isdir(s) and not os.path.islink(s):
+                os.makedirs(d, exist_ok=True)
+                moved += merge_into(s, d)
+            else:
+                if os.path.exists(d) and not os.path.islink(d):
+                    if os.path.getmtime(d) >= os.path.getmtime(s):
+                        os.remove(s) if not os.path.isdir(s) else None
+                        continue
+                    os.remove(d)
+                os.replace(s, d)
+                moved += 1
+        except OSError as e:
+            print(f"[relocate] 合并失败 {s}: {e}", file=sys.stderr)
+    return moved
+
+
+def recover_misplaced(tree):
+    """把 1.1.x 留下的 <名字>.misplaced 目录合并回原位（绝不覆盖更新的文件）。"""
+    total = 0
+    for root, dirs, _files in os.walk(tree):
+        for d in list(dirs):
+            if not d.endswith(".misplaced"):
+                continue
+            src = os.path.join(root, d)
+            dst = os.path.join(root, d[: -len(".misplaced")])
+            try:
+                os.makedirs(dst, exist_ok=True)
+                n = merge_into(src, dst)
+                total += n
+                try:
+                    os.rmdir(src)
+                except OSError:
+                    pass
+                print(f"[relocate] 回收 {src} -> {dst}（{n} 项）")
+            except OSError as e:
+                print(f"[relocate] 回收失败 {src}: {e}", file=sys.stderr)
+    print(f"[relocate] --misplaced 共回收 {total} 项")
+    return 0
+
+
+def main(argv):
+    tree = argv[1] if len(argv) > 1 else "/data/data/dev.dsh.harness/files/usr"
+    pairs = [(OLD, NEW), (OLD_HOME, NEW_HOME)]
+    n = 0
+
+    if len(argv) > 3 and argv[2] == "--list":
+        try:
+            with open(argv[3], "rb") as f:
+                lines = f.read().splitlines()
+        except OSError as e:
+            print(f"[relocate] 读清单失败: {e}", file=sys.stderr)
+            return 1
+        seen = set()
+        for line in lines:
+            if not line.strip():
+                continue
+            p = map_path(line)
+            if p in seen:
+                continue
+            seen.add(p)
+            n += rewrite(p, pairs)
+        print(f"[relocate] --list 重定位 {n} 个文件")
+        return 0
+
+    if len(argv) > 2 and argv[2] == "--misplaced":
+        return recover_misplaced(tree)
+
+    stamp = None
+    if len(argv) > 3 and argv[2] == "--since":
+        try:
+            stamp = os.path.getmtime(argv[3])
+        except OSError:
+            stamp = None
+
+    for root, dirs, files in os.walk(tree):
+        dirs[:] = [d for d in dirs if d not in SKIP]
+        for name in files:
+            p = os.path.join(root, name)
+            try:
+                if stamp is not None and os.lstat(p).st_mtime <= stamp:
+                    continue
+            except OSError:
+                continue
+            n += rewrite(p, pairs)
+    print(f"[relocate] 重定位 {n} 个文件")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

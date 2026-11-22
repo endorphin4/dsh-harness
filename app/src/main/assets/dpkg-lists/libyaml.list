@@ -1,0 +1,16 @@
+/data
+/data/data
+/data/data/com.termux
+/data/data/com.termux/files
+/data/data/com.termux/files/usr/usr
+/data/data/com.termux/files/usr/usr/include
+/data/data/com.termux/files/usr/usr/include/yaml.h
+/data/data/com.termux/files/usr/usr/lib
+/data/data/com.termux/files/usr/usr/lib/libyaml-0.so
+/data/data/com.termux/files/usr/usr/lib/libyaml.so
+/data/data/com.termux/files/usr/usr/lib/pkgconfig
+/data/data/com.termux/files/usr/usr/lib/pkgconfig/yaml-0.1.pc
+/data/data/com.termux/files/usr/usr/share
+/data/data/com.termux/files/usr/usr/share/doc
+/data/data/com.termux/files/usr/usr/share/doc/libyaml
+/data/data/com.termux/files/usr/usr/share/doc/libyaml/copyright

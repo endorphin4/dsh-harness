@@ -1,0 +1,61 @@
+#!/system/bin/sh
+# dsh-doctor —— 一键自检（随载荷安装到 <prefix>/bin/dsh-doctor）
+# 用法: dsh-doctor [--json]
+set -u
+JSON=0
+[ "${1:-}" = "--json" ] && JSON=1
+
+NODE=$(command -v node 2>/dev/null || true)
+B=
+if [ -n "$NODE" ]; then B=$(cd "$(dirname "$NODE")/.." && pwd); fi
+[ -z "$B" ] && B=${PREFIX:-/data/data/dev.dsh.harness/files/usr}
+H=$(cd "$B/../home" 2>/dev/null && pwd || echo "$(dirname "$B")/home")
+P=$(dirname "$(dirname "$B")")
+
+json_esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+say() { [ "$JSON" = 1 ] || printf '%s\n' "$1"; }
+
+say "== 基础 =="
+say "  架构: $(uname -m)   前缀: $B"
+for c in node bash dpkg apt pkg python3 curl gzip tar; do
+  say "  $(printf '%-7s' "$c:") $(command -v "$c" 2>/dev/null || echo 未找到)"
+done
+say "  node:   $(node -v 2>/dev/null || echo -)"
+
+say "== 前缀别名链 =="
+ALIAS_BAD=0
+for a in "$B/data/data/com.termux/files/usr" "$B/data/data/com.termux/files/home" "$P/usr0" "$P/home0"; do
+  if [ -L "$a" ]; then say "  OK  $a -> $(readlink "$a")"; else say "  BAD $a 不是软链"; ALIAS_BAD=$((ALIAS_BAD+1)); fi
+done
+
+say "== dpkg 数据库 =="
+PKG_N=$(dpkg -l 2>/dev/null | grep -c '^ii' || true)
+LIST_N=$(ls "$B"/var/lib/dpkg/info/*.list 2>/dev/null | wc -l)
+say "  登记包: $PKG_N   info/.list: $LIST_N"
+
+say "== 二进制抽查 =="
+for c in nano tree fd rg htop git; do
+  x=$(command -v "$c" 2>/dev/null || true)
+  if [ -z "$x" ]; then say "  $c: 未安装"; continue; fi
+  say "  $c: $x | $("$c" --version 2>&1 | head -1)"
+done
+
+say "== 引擎 =="
+PID=$(cat "$P/engine.pid" 2>/dev/null || echo "")
+if [ -n "$PID" ] && [ -d "/proc/$PID" ]; then say "  pid=$PID 进程:在"; else say "  pid=${PID:-?} 进程:不在"; fi
+CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3082/ 2>/dev/null || echo 000)
+say "  3082: $CODE   （401 = 活着，等 cookie）"
+
+say "== 主题 =="
+grep -A2 'ui-theme' "$H/.dsh/settings.yaml" 2>/dev/null | sed 's/^/  /' || true
+say "  标记: $(cat "$H/.dsh/.theme-light" 2>/dev/null || echo 无)"
+
+say "== 最近日志 =="
+tail -3 "$B/var/log/dsh-relocate.log" 2>/dev/null | sed 's/^/  relocate: /' || true
+tail -2 "$P/engine.log" 2>/dev/null | sed 's/^/  engine: /' || true
+
+if [ "$JSON" = 1 ]; then
+  printf '{"prefix":"%s","home":"%s","arch":"%s","node":"%s","alias_bad":%s,"packages":%s,"lists":%s,"engine_pid":"%s","http_3082":"%s"}\n' \
+    "$(json_esc "$B")" "$(json_esc "$H")" "$(uname -m)" "$(node -v 2>/dev/null)" "$ALIAS_BAD" "$PKG_N" "$LIST_N" "$PID" "$CODE"
+fi
+exit 0

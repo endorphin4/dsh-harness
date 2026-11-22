@@ -1,0 +1,15 @@
+/data
+/data/data
+/data/data/com.termux
+/data/data/com.termux/files
+/data/data/com.termux/files/usr/usr
+/data/data/com.termux/files/usr/usr/include
+/data/data/com.termux/files/usr/usr/include/bzlib.h
+/data/data/com.termux/files/usr/usr/lib
+/data/data/com.termux/files/usr/usr/lib/libbz2.so
+/data/data/com.termux/files/usr/usr/lib/libbz2.so.1.0
+/data/data/com.termux/files/usr/usr/lib/libbz2.so.1.0.8
+/data/data/com.termux/files/usr/usr/share
+/data/data/com.termux/files/usr/usr/share/doc
+/data/data/com.termux/files/usr/usr/share/doc/libbz2
+/data/data/com.termux/files/usr/usr/share/doc/libbz2/copyright

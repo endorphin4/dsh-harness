@@ -1,0 +1,121 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# 一条命令发版：构建 → 算 SHA-256 → 建 tag → 传 GitHub Release。
+#
+# 用法：bash release.sh ["额外说明"]
+# 前置：
+#   * ~/.gh-token 里有带 contents:write 的 GitHub token
+#   * 账号有仓库写权限
+#   * 已 repack 过载荷（dist/dshb-rootfs.tar.gz 存在）
+set -euo pipefail
+PROJ="$(cd "$(dirname "$0")" && pwd)"
+OWNER="${GH_OWNER:-endorphin4}"
+REPO="${GH_REPO:-dsh-harness}"
+TOK="${GH_TOKEN:-$(cat "$HOME/.gh-token")}"
+EXTRA_NOTE="${1:-}"
+
+cd "$PROJ"
+CODE=$(sed -n 's/^CODE=//p' version.txt)
+NAME=$(sed -n 's/^NAME=//p' version.txt)
+APK="$PROJ/dist/dshb-latest.apk"
+PRE="${PRE:-true}"   # 默认预发布：调试期别把自己标成正式版；发正式版用 PRE=false
+[ -f "$APK" ] || { echo "✗ 没有 $APK，先跑 build-apk.sh" >&2; exit 1; }
+
+SHA=$(sha256sum "$APK" | awk '{print $1}')
+SIZE=$(stat -c%s "$APK")
+ASSET="dsh-harness-${NAME}-arm64.apk"
+echo "版本 $NAME ($CODE) · $((SIZE/1048576)) MB · sha256 ${SHA:0:16}…"
+
+# 0) 版本守卫：versionCode 必须大于已发布的最新 v* 版本，否则拒绝发布
+LATEST_JSON=$(curl -s -m 20 -H "Authorization: bearer $TOK" \
+  "https://api.github.com/repos/$OWNER/$REPO/releases?per_page=50")
+GUARD=$(printf '%s' "$LATEST_JSON" | python3 -c '
+import json, re, sys
+raw = sys.stdin.read()
+new = sys.argv[1]
+try:
+    rels = json.loads(raw)
+except Exception:
+    print("（版本守卫跳过：拿不到 release 列表）"); raise SystemExit(0)
+tags = [r["tag_name"] for r in rels if re.match(r"^v\d", r.get("tag_name", ""))]
+if not tags:
+    raise SystemExit(0)
+def ver(s):
+    return tuple(int(x) for x in re.findall(r"\d+", s)[:3])
+latest = max(tags, key=ver)
+if ver(new) <= ver(latest):
+    print(f"✗ 版本未递增：{new} <= {latest}；先 bump version.txt", file=sys.stderr)
+    raise SystemExit(1)
+print(f"  版本守卫通过：{latest} → {new}")
+' "$NAME") || { echo "$GUARD"; exit 1; }
+echo "$GUARD"
+
+# 1) 建 release（不存在则建；已存在则复用，避免重复上传报错）
+BODY=$(python3 - "$NAME" "$CODE" "$SHA" "$EXTRA_NOTE" <<'PY'
+import json, sys, os
+name, code, sha, extra = sys.argv[1:5]
+body = f"""自带运行时的 Android App：不需要 Termux、不需要 root。
+
+### 安装
+1. 下载 `dsh-harness-{name}-arm64.apk`（约 243 MB，建议 Wi-Fi）
+2. 允许「安装未知应用」后安装
+3. 首次启动自动解包运行环境（约 60 秒）
+4. 用 DeepSeek 账号登录，或填自己的 API Key
+
+### 校验
+```
+sha256: {sha}
+```
+
+### 说明
+{extra or '见 README。'}
+"""
+print(json.dumps({"tag_name": f"v{name}", "name": f"DSH Harness v{name}", "body": body,
+                  "draft": False,
+                  "prerelease": os.environ.get("PRE", "true") == "true"})),
+PY
+)
+RESP=$(curl -s -X POST -H "Authorization: bearer $TOK" -H 'Accept: application/vnd.github+json' \
+  "https://api.github.com/repos/$OWNER/$REPO/releases" -d "$BODY")
+REL_ID=$(printf '%s' "$RESP" | python3 -c "import json,sys;print(json.load(sys.stdin).get('id') or '')")
+if [ -z "$REL_ID" ]; then
+  # tag 已存在：取现成的 release
+  REL_ID=$(curl -s -H "Authorization: bearer $TOK" "https://api.github.com/repos/$OWNER/$REPO/releases/tags/v$NAME" \
+    | python3 -c "import json,sys;print(json.load(sys.stdin).get('id') or '')")
+fi
+[ -n "$REL_ID" ] || { echo "✗ 建 release 失败：$RESP" >&2; exit 1; }
+echo "release id=$REL_ID"
+
+# 2) 传资产（同名先删，保证可重跑）
+for f in "$APK" "$PROJ/dist/dshb-latest.apk.sha256"; do
+  [ -f "$f" ] || continue
+  UP_NAME="$ASSET"; case "$f" in *.sha256) UP_NAME="$ASSET.sha256" ;; esac
+  curl -s -H "Authorization: bearer $TOK" "https://api.github.com/repos/$OWNER/$REPO/releases/$REL_ID/assets" \
+    | python3 -c "
+import json,sys
+name='$UP_NAME'
+for a in json.load(sys.stdin):
+    if a['name']==name: print(a['id'])
+" | while read -r aid; do
+    [ -n "$aid" ] && curl -s -X DELETE -H "Authorization: bearer $TOK" \
+      "https://api.github.com/repos/$OWNER/$REPO/releases/assets/$aid" > /dev/null && echo "  删旧资产 $UP_NAME"
+  done
+  echo "  上传 $UP_NAME（$(( $(stat -c%s "$f") /1048576 )) MB）…"
+  # uploads.github.com 时不时连不上（DNS/代理抖动），而且以前 -o /dev/null 把失败全吞了，
+  # 结果 release 建出来但 0 资产。这里重试 3 次，并把 HTTP 码打出来。
+  UPLOADED=0
+  for try in 1 2 3; do
+    HTTP_CODE=$(curl -s -m 900 -X POST \
+      -H "Authorization: bearer $TOK" \
+      -H "Content-Type: application/octet-stream" \
+      --data-binary "@$f" \
+      "https://uploads.github.com/repos/$OWNER/$REPO/releases/$REL_ID/assets?name=$UP_NAME" \
+      -o "$PROJ/.upload.json" -w '%{http_code}' 2>/dev/null || echo 000)
+    if [ "$HTTP_CODE" = "201" ]; then UPLOADED=1; break; fi
+    echo "    第 $try 次失败（HTTP $HTTP_CODE），5 秒后重试…"
+    sleep 5
+  done
+  [ "$UPLOADED" = "1" ] || { echo "✗ 上传失败：$UP_NAME（资产还没传上去，发布不完整）" >&2; exit 1; }
+  echo "  完成"
+done
+
+echo "✓ https://github.com/$OWNER/$REPO/releases/tag/v$NAME"

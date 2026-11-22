@@ -1,0 +1,12 @@
+/data
+/data/data
+/data/data/com.termux
+/data/data/com.termux/files
+/data/data/com.termux/files/usr/usr
+/data/data/com.termux/files/usr/usr/etc
+/data/data/com.termux/files/usr/usr/etc/tls
+/data/data/com.termux/files/usr/usr/etc/tls/cert.pem
+/data/data/com.termux/files/usr/usr/share
+/data/data/com.termux/files/usr/usr/share/doc
+/data/data/com.termux/files/usr/usr/share/doc/ca-certificates
+/data/data/com.termux/files/usr/usr/share/doc/ca-certificates/copyright

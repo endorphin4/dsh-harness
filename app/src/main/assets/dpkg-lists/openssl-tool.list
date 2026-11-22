@@ -1,0 +1,8 @@
+/data
+/data/data
+/data/data/com.termux
+/data/data/com.termux/files
+/data/data/com.termux/files/usr/usr
+/data/data/com.termux/files/usr/usr/bin
+/data/data/com.termux/files/usr/usr/bin/add-trusted-certificate
+/data/data/com.termux/files/usr/usr/bin/openssl

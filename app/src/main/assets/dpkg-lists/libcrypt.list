@@ -1,0 +1,13 @@
+/data
+/data/data
+/data/data/com.termux
+/data/data/com.termux/files
+/data/data/com.termux/files/usr/usr
+/data/data/com.termux/files/usr/usr/include
+/data/data/com.termux/files/usr/usr/include/crypt.h
+/data/data/com.termux/files/usr/usr/lib
+/data/data/com.termux/files/usr/usr/lib/libcrypt.so
+/data/data/com.termux/files/usr/usr/share
+/data/data/com.termux/files/usr/usr/share/doc
+/data/data/com.termux/files/usr/usr/share/doc/libcrypt
+/data/data/com.termux/files/usr/usr/share/doc/libcrypt/copyright

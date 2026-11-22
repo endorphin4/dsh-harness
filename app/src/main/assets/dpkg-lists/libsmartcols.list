@@ -1,0 +1,12 @@
+/data
+/data/data
+/data/data/com.termux
+/data/data/com.termux/files
+/data/data/com.termux/files/usr/usr
+/data/data/com.termux/files/usr/usr/include
+/data/data/com.termux/files/usr/usr/include/libsmartcols
+/data/data/com.termux/files/usr/usr/include/libsmartcols/libsmartcols.h
+/data/data/com.termux/files/usr/usr/lib
+/data/data/com.termux/files/usr/usr/lib/libsmartcols.so
+/data/data/com.termux/files/usr/usr/lib/pkgconfig
+/data/data/com.termux/files/usr/usr/lib/pkgconfig/smartcols.pc

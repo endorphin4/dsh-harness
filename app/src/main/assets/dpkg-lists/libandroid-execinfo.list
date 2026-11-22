@@ -1,0 +1,14 @@
+/data
+/data/data
+/data/data/com.termux
+/data/data/com.termux/files
+/data/data/com.termux/files/usr/usr
+/data/data/com.termux/files/usr/usr/include
+/data/data/com.termux/files/usr/usr/include/execinfo.h
+/data/data/com.termux/files/usr/usr/lib
+/data/data/com.termux/files/usr/usr/lib/libandroid-execinfo.so
+/data/data/com.termux/files/usr/usr/lib/libexecinfo.so
+/data/data/com.termux/files/usr/usr/share
+/data/data/com.termux/files/usr/usr/share/doc
+/data/data/com.termux/files/usr/usr/share/doc/libandroid-execinfo
+/data/data/com.termux/files/usr/usr/share/doc/libandroid-execinfo/copyright

@@ -1,0 +1,16 @@
+/data
+/data/data
+/data/data/com.termux
+/data/data/com.termux/files
+/data/data/com.termux/files/usr/usr
+/data/data/com.termux/files/usr/usr/bin
+/data/data/com.termux/files/usr/usr/bin/sed
+/data/data/com.termux/files/usr/usr/share
+/data/data/com.termux/files/usr/usr/share/doc
+/data/data/com.termux/files/usr/usr/share/doc/sed
+/data/data/com.termux/files/usr/usr/share/doc/sed/copyright
+/data/data/com.termux/files/usr/usr/share/info
+/data/data/com.termux/files/usr/usr/share/info/sed.info
+/data/data/com.termux/files/usr/usr/share/man
+/data/data/com.termux/files/usr/usr/share/man/man1
+/data/data/com.termux/files/usr/usr/share/man/man1/sed.1.gz

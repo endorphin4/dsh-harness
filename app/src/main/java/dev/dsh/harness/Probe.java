@@ -1,0 +1,224 @@
+package dev.dsh.harness;
+
+/**
+ * 页面探针脚本：把 window.open 的调用与结果、JS 报错、以及落点/侧栏测量回传给 Java。
+ * 单拎出来是因为它是一大段 JS 字面量，塞在 MainActivity 里既难读也难改。
+ */
+final class Probe {
+
+    private Probe() {}
+
+
+    /**
+     * 原生注入的固定入口：不依赖 DSH 的任何插槽/插件 UI。
+     * 插件客户端 bundle 有没有加载、插槽存不存在都不影响它 —— 直接往 body 上挂 DOM。
+     */
+    /**
+     * 原生兜底入口：插件自己的客户端 bundle 没渲染出来时，用这个「应用 ▾」顶上。
+     * 面板是照着官方桌面端更新对话框做的：遮罩 + 居中卡片（圆角 24）、两块版本、竖排 44px 按钮。
+     * 检查更新走 Java（DSHBridge.check），不依赖引擎里的插件接口。
+     */
+    static String chipJs() { return chip(); }
+
+    private static String chip() {
+        return "(function(){"
+            + "if(window.__dshbChip){return;}window.__dshbChip=1;"
+            + "var css='#dshb-chip{position:fixed;z-index:2147483647}"
+            + "#dshb-chip>button{padding:4px 10px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));"
+            + "background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.12));color:var(--dsw-alias-label-primary,inherit);"
+            + "font:12px/1.2 system-ui;cursor:pointer;backdrop-filter:blur(8px)}"
+            + "#dshb-mask{position:fixed;inset:0;z-index:2147483645;background:rgba(0,0,0,.5);display:none}"
+            + "#dshb-card{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483646;display:none;"
+            + "width:min(380px,calc(100vw - 32px));max-height:80vh;overflow:auto;box-sizing:border-box;padding:22px 24px 24px;"
+            + "border-radius:24px;background:var(--dsw-alias-bg-layer-1,#232324);color:var(--dsw-alias-label-primary,#f9fafb);"
+            + "border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.12));font:14px/1.55 system-ui}"
+            + "#dshb-card h2{font:16px/24px system-ui;font-weight:500;margin:0 0 6px}"
+            + "#dshb-card .sec{margin-top:14px;font:13px/1.4 system-ui;opacity:.75}"
+            + "#dshb-card .row{margin-top:3px;word-break:break-all}"
+            + "#dshb-card .note{margin-top:8px;font:12px/1.5 system-ui;opacity:.65}"
+            + "#dshb-card button{display:block;width:100%;box-sizing:border-box;margin-top:8px;min-height:44px;padding:9px 16px;"
+            + "border-radius:12px;border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;"
+            + "font:14px/1.3 system-ui;cursor:pointer}"
+            + "#dshb-card button.primary{background:var(--dsw-alias-bg-accent,#e9eaee);color:#111;border-color:transparent}';"
+            + "var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);"
+            + "var chip=document.createElement('div');chip.id='dshb-chip';"
+            + "var btn=document.createElement('button');btn.textContent='\u5e94\u7528 \u25be';chip.appendChild(btn);"
+            + "var mask=document.createElement('div');mask.id='dshb-mask';"
+            + "var card=document.createElement('div');card.id='dshb-card';"
+            + "document.body.appendChild(chip);document.body.appendChild(mask);document.body.appendChild(card);"
+            + "function close(){card.style.display='none';mask.style.display='none';}"
+            + "mask.addEventListener('click',close);"
+            + "function row(host,t){var d=document.createElement('div');d.className='row';d.textContent=t;host.appendChild(d);return d;}"
+            + "function sec(host,t){var d=document.createElement('div');d.className='sec';d.textContent=t;host.appendChild(d);return d;}"
+            + "function act(host,t,fn,primary){var b=document.createElement('button');b.textContent=t;"
+            + "if(primary)b.className='primary';b.addEventListener('click',function(ev){ev.stopPropagation();fn();});host.appendChild(b);return b;}"
+            + "window.__dshbUpdate=function(x){if(!x)return;card.textContent='';"
+            + "var h=document.createElement('h2');h.textContent='DeepSeek Harness \u66f4\u65b0';card.appendChild(h);"
+            + "sec(card,'\u5916\u58f3');row(card,'\u5f53\u524d '+(x.app||'\u672a\u77e5')+(x.appLatest?(' \u2192 '+x.appLatest):('\uff08\u5df2\u662f\u6700\u65b0\uff09')));"
+            + "sec(card,'\u5f15\u64ce');row(card,'\u5f53\u524d '+(x.engine||'\u672a\u77e5')+(x.engineLatest?(' \u2192 '+x.engineLatest):('\uff08\u5df2\u662f\u6700\u65b0\uff09')));"
+            + "if(x.note)row(card,x.note);"
+            + "if(x.appUpdate&&x.apkUrl)act(card,'\u4e0b\u8f7d\u5e76\u5b89\u88c5\u5916\u58f3',function(){try{DSHBridge.download(x.apkUrl);close();}catch(e){}},1);"
+            + "if(x.engineUpdate&&x.tarUrl)act(card,'\u66f4\u65b0\u5f15\u64ce\uff08\u7ea6 95 MB\uff09',function(){try{DSHBridge.engineUpdate(x.tarUrl,x.engineLatest);}catch(e){}});"
+            + "act(card,'\u91cd\u65b0\u68c0\u67e5',function(){card.textContent='\u6b63\u5728\u68c0\u67e5\u2026';try{DSHBridge.check();}catch(e){card.textContent='\u68c0\u67e5\u5931\u8d25\uff1a'+e;}});"
+            + "act(card,'\u5173\u95ed',close);"
+            + "card.style.display='block';mask.style.display='block';};"
+            + "btn.addEventListener('click',function(ev){ev.stopPropagation();if(card.style.display==='block'){close();return;}"
+            + "card.textContent='\u6b63\u5728\u68c0\u67e5\u2026';card.style.display='block';mask.style.display='block';"
+            + "try{DSHBridge.check();}catch(e){card.textContent='\u68c0\u67e5\u5931\u8d25\uff1a'+e;}});"
+            + "var rail=document.querySelector('[class*=\"sidebar\"]');"
+            + "var w=rail?rail.getBoundingClientRect().width:0;"
+            + "chip.style.left=((w>0?w:56)+10)+'px';chip.style.top='8px';"
+            + "btn.addEventListener('pointerdown',function(ev){var sx=ev.clientX,sy=ev.clientY,ox=chip.offsetLeft,oy=chip.offsetTop,pressed=1;"
+            + "function mv(e2){if(!pressed)return;var mx=e2.clientX-sx,my=e2.clientY-sy;if(Math.abs(mx)+Math.abs(my)<8)return;"
+            + "chip.style.left=(ox+mx)+'px';chip.style.top=(oy+my)+'px';"
+            + "try{localStorage.setItem('dshbChipPos',JSON.stringify({x:chip.offsetLeft,y:chip.offsetTop}));}catch(e){}}"
+            + "function up(){pressed=0;window.removeEventListener('pointermove',mv);window.removeEventListener('pointerup',up);}"
+            + "window.addEventListener('pointermove',mv);window.addEventListener('pointerup',up);});"
+            + "try{var p=JSON.parse(localStorage.getItem('dshbChipPos')||'null');"
+            + "if(p&&typeof p.x==='number'){chip.style.left=p.x+'px';chip.style.top=p.y+'px';}}catch(e){}"
+            + "setInterval(function(){if(document.querySelector('.dsar-app,.dsar-btn')){chip.style.display='none';}},1500);"
+            + "try{DSHBridge.log('chip-native ready '+location.pathname);}catch(e){}"
+            + "})()";
+    }
+
+
+    /**
+     * 原生注入：侧栏底部的「引擎 X」标签。
+     * 位置按页面上 footArea（侧栏底部按钮区）的顶边自动让开，取不到就贴底。
+     * 不注册任何插件插槽 ⇒ 不会与侧栏浏览器等客户端插件互相影响。
+     */
+    static String engineLabelJs(String version) {
+        String v = Utils.jsStr(version);
+        return "" 
+                + "(function(V){\n"
+                + "  function railW(){\n"
+                + "    try{\n"
+                + "      var els=document.querySelectorAll('[class*=sidebar]');\n"
+                + "      for(var i=0;i<els.length;i++){\n"
+                + "        var w=els[i].getBoundingClientRect().width;\n"
+                + "        if(w>30&&w<140)return Math.round(w);\n"
+                + "      }\n"
+                + "    }catch(e){}\n"
+                + "    return 56;\n"
+                + "  }\n"
+                + "  function place(el){\n"
+                + "    try{\n"
+                + "      var w=railW();\n"
+                + "      el.style.left=(w<=80?8:w+10)+'px';\n"
+                + "      var fa=document.querySelector('[class*=footArea]');\n"
+                + "      var b=10;\n"
+                + "      if(fa&&fa.getBoundingClientRect){\n"
+                + "        var r=fa.getBoundingClientRect();\n"
+                + "        if(r.height>0)b=Math.max(10,Math.round(window.innerHeight-r.top)+6);\n"
+                + "      }\n"
+                + "      el.style.bottom=b+'px';\n"
+                + "    }catch(e){}\n"
+                + "  }\n"
+                + "  function injectCss(){\n"
+                + "    if(document.getElementById('dshb-chip-css'))return;\n"
+                + "    var st=document.createElement('style');\n"
+                + "    st.id='dshb-chip-css';\n"
+                + "    st.textContent=\n"
+                + "      '#dshb-engine{position:fixed;z-index:2147482500;display:inline-flex;align-items:center;gap:7px;'+\n"
+                + "      'padding:4px 10px 4px 8px;border-radius:999px;box-sizing:border-box;'+\n"
+                + "      'font:500 11px/14px -apple-system,system-ui,\"Segoe UI\",Roboto,sans-serif;letter-spacing:.01em;'+\n"
+                + "      'color:var(--dsw-alias-label-secondary,#5f6b7a);'+\n"
+                + "      'background:rgba(255,255,255,.78);'+\n"
+                + "      'background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 80%,transparent);'+\n"
+                + "      'border:1px solid var(--dsw-alias-border-1,rgba(15,23,42,.10));'+\n"
+                + "      'box-shadow:0 1px 3px rgba(15,23,42,.07),inset 0 1px 0 rgba(255,255,255,.55);'+\n"
+                + "      'backdrop-filter:blur(10px) saturate(1.25);-webkit-backdrop-filter:blur(10px) saturate(1.25);'+\n"
+                + "      'cursor:pointer;user-select:none;-webkit-user-select:none;white-space:nowrap;opacity:.92;'+\n"
+                + "      'transition:opacity .15s ease,box-shadow .15s ease,transform .08s ease}'+\n"
+                + "      '#dshb-engine:hover{opacity:1;box-shadow:0 2px 9px rgba(15,23,42,.11),inset 0 1px 0 rgba(255,255,255,.6)}'+\n"
+                + "      '#dshb-engine:active{transform:scale(.975)}'+\n"
+                + "      '#dshb-engine .d{width:6px;height:6px;border-radius:50%;flex:none;background:#94a3b8;'+\n"
+                + "      'box-shadow:0 0 0 3px rgba(148,163,184,.14);transition:background .2s ease,box-shadow .2s ease}'+\n"
+                + "      '#dshb-engine[data-s=ok] .d{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.16)}'+\n"
+                + "      '#dshb-engine[data-s=update] .d{background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.18);'+\n"
+                + "      'animation:dshbChipPulse 1.8s ease-in-out infinite}'+\n"
+                + "      '#dshb-engine[data-s=busy] .d{background:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.18);'+\n"
+                + "      'animation:dshbChipPulse 1.2s ease-in-out infinite}'+\n"
+                + "      '#dshb-engine .s{font-weight:600;color:#b45309;font-size:10px;'+\n"
+                + "      'padding:0 5px;border-radius:99px;background:rgba(245,158,11,.13);display:none}'+\n"
+                + "      '#dshb-engine[data-s=update] .s{display:inline-block}'+\n"
+                + "      '@keyframes dshbChipPulse{0%,100%{opacity:1}50%{opacity:.45}}';\n"
+                + "    document.head.appendChild(st);\n"
+                + "  }\n"
+                + "  injectCss();\n"
+                + "  var el=document.getElementById('dshb-engine');\n"
+                + "  if(!el){\n"
+                + "    el=document.createElement('div');\n"
+                + "    el.id='dshb-engine';\n"
+                + "    el.setAttribute('data-s','unknown');\n"
+                + "    var d=document.createElement('span');d.className='d';\n"
+                + "    var t=document.createElement('span');t.className='t';\n"
+                + "    var s=document.createElement('span');s.className='s';s.textContent='可更新';\n"
+                + "    el.appendChild(d);el.appendChild(t);el.appendChild(s);\n"
+                + "    document.body.appendChild(el);\n"
+                + "    window.addEventListener('resize',function(){place(el);});\n"
+                + "    try{\n"
+                + "      new MutationObserver(function(){place(el);}).observe(document.body,{childList:true,subtree:true});\n"
+                + "    }catch(e){}\n"
+                + "    el.addEventListener('click',function(e){try{e.preventDefault();e.stopPropagation();}catch(_){}\n"
+                + "      try{window.__dshbEPOpen&&window.__dshbEPOpen();}catch(_){}\n"
+                + "    },true);\n"
+                + "  }\n"
+                + "  var tv=el.querySelector('.t');\n"
+                + "  if(tv)tv.textContent=V?('引擎 '+V):'引擎';\n"
+                + "  el.setAttribute('title',V?('引擎 '+V+' · 点击查看引擎更新'):'引擎未运行 · 点击查看引擎更新');\n"
+                + "  if(!window.__dshbChipSet){\n"
+                + "    window.__dshbChipSet=function(state){\n"
+                + "      try{\n"
+                + "        el.setAttribute('data-s',state==='ok'||state==='update'||state==='busy'?state:'unknown');\n"
+                + "        if(state==='update')el.setAttribute('title','有新版本可更新 · 点击查看');\n"
+                + "        else if(state==='ok')el.setAttribute('title','已是最新 · 点击查看引擎详情');\n"
+                + "      }catch(e){}\n"
+                + "    };\n"
+                + "  }\n"
+                + "  place(el);\n"
+                + "  return tv?tv.textContent:'';\n"
+                + "})(\n"
+                + v
+                + ")\n"
+                + "";
+    }
+
+    static String js(String version) {
+        String v = Utils.jsStr(version);
+        return "(function(){"
+                // 量侧栏鱼标的位置（窄轨时它在折叠按钮里）。每次页面加载都量一遍，接口幂等。
+                + "try{if(!window.__dshbMeasure){window.__dshbMeasure=function(){"
+                + "try{var el=document.querySelector('[class*=\"railMark\"] svg')||document.querySelector('[class*=\"railMark\"]')"
+                + "||document.querySelector('[class*=\"brandMark\"] svg');"
+                + "if(!el)return false;var r=el.getBoundingClientRect();"
+                + "if(!(r.width>0)||!(r.height>0))return false;"
+                + "DSHBridge.anchor(r.left+r.width/2,r.top+r.height/2,r.width);return true;}catch(e){return false;}};}"
+                + "var tries=0;(function tick(){if(window.__dshbMeasure())return;if(++tries<25)setTimeout(tick,200);})();}catch(e){}"
+                + "if(window.__dshbProbe)return;window.__dshbProbe=1;"
+                + "try{var o=window.open;window.open=function(u,n,f){var r=null;try{r=o.call(window,u,n,f)}catch(e){}"
+                + "try{DSHBridge.log('window.open('+String(u).slice(0,100)+','+n+') -> '+(r?'句柄':'null'))}catch(e){}"
+                + "return r;};}catch(e){try{DSHBridge.log('hook failed '+e)}catch(_){}}"
+                + "window.addEventListener('error',function(e){try{var w=e.filename?String(e.filename).slice(-60):'';"
+                + "DSHBridge.log('js-error '+e.message+(w?' @'+w+':'+e.lineno:'')+(e.error&&e.error.stack?' '+String(e.error.stack).split('\\n')[0].slice(0,120):''))}catch(_){}});"
+                + "try{var K='dshbProbeV';if(localStorage.getItem(K)!=" + v + "){localStorage.setItem(K," + v + ");"
+                + "DSHBridge.log('探针已装 '+location.pathname);window.__dshbFirst=1}else{window.__dshbFirst=0}}catch(e){window.__dshbFirst=1}"
+                + "try{var c=document.querySelector('.dsar-app');if(c){var r=c.getBoundingClientRect();"
+                + "var sp=0,pc='';for(var q=c.parentElement,i=0;q&&i<8;q=q.parentElement,i++){"
+                + "if(i===0)pc=String(q.className||'');var cl=String(q.className||'');"
+                + "if(/sidebar|rail|nav/i.test(cl))sp=1;}"
+                + "DSHBridge.log('chip x='+Math.round(r.left)+' y='+Math.round(r.top)+' w='+Math.round(r.width)+' h='+Math.round(r.height)"
+                + "+' inSidebar='+sp+' parent='+pc.slice(0,50));}}catch(e){try{DSHBridge.log('chip probe fail '+e)}catch(_){}}"
+                + "if(window.__dshbFirst)setTimeout(function(){try{"
+                + "var ta=document.querySelector('textarea');"
+                + "var ed=document.querySelector('[contenteditable=\"true\"]');"
+                + "var dis=function(el){return el?((el.disabled?'disabled':'enabled')+(el.readOnly?' readonly':'')):'none'};"
+                + "var txt=(document.body.innerText||'');"
+                + "var wsAns=document.querySelectorAll('[class*=\"workspace\"]').length;"
+                + "DSHBridge.log('ui textarea='+dis(ta)+' editable='+dis(ed)+' wsBlocks='+wsAns"
+                + "+' 登录字样='+(/登录|Log in|Sign in/.test(txt)?1:0)+' 选择工作区='+(/选择工作区|Choose a workspace|Select workspace/.test(txt)?1:0)"
+                + "+' 正文='+txt.trim().length);}catch(e){try{DSHBridge.log('ui 探测失败 '+e)}catch(_){}}},4000);"
+                + ""
+                + "})()";
+    }
+}

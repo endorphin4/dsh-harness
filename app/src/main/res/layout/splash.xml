@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动屏：官方鱼标（背后一层柔光）+ 标题 + 状态 + 自绘彗星加载条
+     背景单独一层（@id/splashBg），交接时用一段较长的交叉淡出化掉，
+     文案与加载条各自错开淡出，鱼则交给外面的飞行层接力 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/splashRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clickable="true"
+    android:focusable="true">
+
+    <View
+        android:id="@+id/splashBg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/splash_bg" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:clipChildren="false"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <!-- 舞台：200dp 见方，装柔光 + 鱼标。柔光比鱼大得多，单独一层才不会被 badge 裁掉 -->
+        <FrameLayout
+            android:id="@+id/stage"
+            android:layout_width="200dp"
+            android:layout_height="200dp">
+
+            <View
+                android:id="@+id/glow"
+                android:layout_width="200dp"
+                android:layout_height="200dp"
+                android:layout_gravity="center"
+                android:background="@drawable/splash_glow" />
+
+            <FrameLayout
+                android:id="@+id/badge"
+                android:layout_width="96dp"
+                android:layout_height="88dp"
+                android:layout_gravity="center">
+
+                <ImageView
+                    android:id="@+id/fish"
+                    android:layout_width="88dp"
+                    android:layout_height="88dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_fish" />
+            </FrameLayout>
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:letterSpacing="0.01"
+            android:text="DeepSeek Harness"
+            android:textColor="#ECEEF1"
+            android:textSize="21sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:maxWidth="300dp"
+            android:paddingLeft="24dp"
+            android:paddingRight="24dp"
+            android:text="正在启动…"
+            android:textColor="#8B929C"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:id="@+id/dots"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="30dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/dot1"
+                android:layout_width="7dp"
+                android:layout_height="7dp"
+                android:layout_marginLeft="4dp"
+                android:layout_marginRight="4dp"
+                android:background="@drawable/splash_dot" />
+
+            <View
+                android:id="@+id/dot2"
+                android:layout_width="7dp"
+                android:layout_height="7dp"
+                android:layout_marginLeft="4dp"
+                android:layout_marginRight="4dp"
+                android:background="@drawable/splash_dot" />
+
+            <View
+                android:id="@+id/dot3"
+                android:layout_width="7dp"
+                android:layout_height="7dp"
+                android:layout_marginLeft="4dp"
+                android:layout_marginRight="4dp"
+                android:background="@drawable/splash_dot" />
+        </LinearLayout>
+    </LinearLayout>
+
+</FrameLayout>

@@ -1,0 +1,14 @@
+/data
+/data/data
+/data/data/com.termux
+/data/data/com.termux/files
+/data/data/com.termux/files/usr/usr
+/data/data/com.termux/files/usr/usr/bin
+/data/data/com.termux/files/usr/usr/bin/dialog
+/data/data/com.termux/files/usr/usr/share
+/data/data/com.termux/files/usr/usr/share/doc
+/data/data/com.termux/files/usr/usr/share/doc/dialog
+/data/data/com.termux/files/usr/usr/share/doc/dialog/copyright
+/data/data/com.termux/files/usr/usr/share/man
+/data/data/com.termux/files/usr/usr/share/man/man1
+/data/data/com.termux/files/usr/usr/share/man/man1/dialog.1.gz
