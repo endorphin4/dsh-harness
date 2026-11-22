@@ -79,6 +79,9 @@ bash build-apk.sh
 
 ## 构建与发版
 
+版本号规则、发版流程与签名密钥保管要求见 **[VERSIONING.md](VERSIONING.md)**。
+
+
 设备本机构建（无需 Gradle/Android Studio）、引擎补丁策略、发版检查清单，见
 **[docs/engine-build.md](docs/engine-build.md)**。
 
