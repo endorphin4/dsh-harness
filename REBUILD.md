@@ -72,6 +72,24 @@ bash build-apk.sh          # → dist/dev.dsh.harness-<version>.apk
 - 全新安装直接是 1.0.0，不受影响
 - 若要老设备也能自动升级，需要把比较逻辑改成优先比 `versionCode`（见 `dsh-app-release/lib/index.js` 的 `compareVersions` 调用点）
 
+## 构建期发现的两个坑（1.0.0 已修/已记录）
+
+1. **`themes.xml` 的 `windowBackground` 用了字面色值** `#FF101418`，新版 aapt2 会报
+   `expected reference but got (raw string)`。已改为 `@color/window_bg`（新增 `values/colors.xml`）。
+2. **`app/src/main/assets/dpkg-lists/` 在仓库里是空的**，构建脚本从 `$PROJ/../.dpkg-lists/` 取：
+   - `lists/*.list`（75 份）
+   - `full/usr/var/lib/dpkg/{status,available}`
+   这三个都能从已安装的 APK 里解出来：
+   ```bash
+   unzip -o "$APK" 'assets/dpkg-lists/*' 'assets/dpkg-status.txt' 'assets/dpkg-available.txt' -d ./x
+   mkdir -p ../.dpkg-lists/lists ../.dpkg-lists/full/usr/var/lib/dpkg
+   cp x/assets/dpkg-lists/*.list ../.dpkg-lists/lists/
+   cp x/assets/dpkg-status.txt ../.dpkg-lists/full/usr/var/lib/dpkg/status
+   cp x/assets/dpkg-available.txt ../.dpkg-lists/full/usr/var/lib/dpkg/available
+   ```
+3. **`android.jar` 需 API 31+**（代码用了 `Notification.FOREGROUND_SERVICE_IMMEDIATE`）。
+   platform-28 会编译失败；用 platform-31 的 `android.jar` 通过。
+
 ## 发版检查清单
 
 1. `version.txt` 递增 `CODE`，`NAME` 按需改
