@@ -358,6 +358,10 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** 页面 <input type=file> 的回调；不接这个，点「文件」就毫无反应。 */
+    private android.webkit.ValueCallback<android.net.Uri[]> fileChooserCallback;
+    private static final int REQ_FILE_CHOOSER = 0x2001;
+
     /** 每次启动只尝试一次的「插件加载失败」自愈。 */
     private boolean pluginRepairTried;
 
@@ -851,6 +855,38 @@ public class MainActivity extends Activity {
                 t.setWebView(w);
                 resultMsg.sendToTarget();
                 return true;
+            }
+
+            @Override
+            public boolean onShowFileChooser(WebView view,
+                                             android.webkit.ValueCallback<android.net.Uri[]> callback,
+                                             android.webkit.WebChromeClient.FileChooserParams params) {
+                Life.note(MainActivity.this, "页面请求选择文件");
+                if (fileChooserCallback != null) {
+                    fileChooserCallback.onReceiveValue(null);
+                    fileChooserCallback = null;
+                }
+                fileChooserCallback = callback;
+                try {
+                    android.content.Intent i = params != null ? params.createIntent() : null;
+                    if (i == null) throw new IllegalStateException("createIntent 返回空");
+                    i.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+                    startActivityForResult(i, REQ_FILE_CHOOSER);
+                    return true;
+                } catch (Throwable e) {
+                    Life.note(MainActivity.this, "文件选择 intent 失败，回退通用选择器：" + e);
+                    try {
+                        android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_GET_CONTENT);
+                        i.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+                        i.setType("*/*");
+                        startActivityForResult(i, REQ_FILE_CHOOSER);
+                        return true;
+                    } catch (Throwable e2) {
+                        Life.note(MainActivity.this, "没有可用的文件选择器：" + e2);
+                        fileChooserCallback = null;
+                        return false;
+                    }
+                }
             }
 
             @Override
@@ -2390,6 +2426,30 @@ public class MainActivity extends Activity {
 
     private float dp(float v) {
         return v * getResources().getDisplayMetrics().density;
+    }
+
+    /** 文件选择结果回传给 WebView（多选回传数组）。 */
+    @Override
+    protected void onActivityResult(int req, int res, android.content.Intent data) {
+        if (req == REQ_FILE_CHOOSER) {
+            android.webkit.ValueCallback<android.net.Uri[]> cb = fileChooserCallback;
+            fileChooserCallback = null;
+            if (cb == null) { super.onActivityResult(req, res, data); return; }
+            android.net.Uri[] out = null;
+            if (res == RESULT_OK && data != null) {
+                android.content.ClipData clip = data.getClipData();
+                if (clip != null && clip.getItemCount() > 0) {
+                    out = new android.net.Uri[clip.getItemCount()];
+                    for (int i = 0; i < clip.getItemCount(); i++) out[i] = clip.getItemAt(i).getUri();
+                } else if (data.getData() != null) {
+                    out = new android.net.Uri[]{data.getData()};
+                }
+            }
+            Life.note(this, "文件选择返回 res=" + res + " 选中 " + (out == null ? 0 : out.length) + " 个");
+            cb.onReceiveValue(out);
+            return;
+        }
+        super.onActivityResult(req, res, data);
     }
 
     @Override

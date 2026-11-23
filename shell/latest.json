@@ -1,13 +1,13 @@
 {
- "version": "1.0.3",
- "code": 1003,
- "apkName": "dsh-harness-1.0.3-arm64.apk",
- "size": 254891230,
- "sha256": "d1ef8bb7b20258300fb9487a529f6d9e3589f145dbd2a429cf64f76723ff1942",
- "publishedAt": "2026-11-23T09:29:03+0800",
+ "version": "1.0.4",
+ "code": 1004,
+ "apkName": "dsh-harness-1.0.4-arm64.apk",
+ "size": 254895326,
+ "sha256": "edb36b94f1ba67a10998bf8577eac96ddedfeef1e0284a58d3233beb06fda7d8",
+ "publishedAt": "2026-11-23T09:37:33+0800",
  "prerelease": false,
- "pageUrl": "https://github.com/endorphin4/dsh-harness/releases/tag/v1.0.3",
- "notes": "DSH Harness 1.0.3",
- "apkUrl": "https://github.com/endorphin4/dsh-harness/releases/download/v1.0.3/dsh-harness-1.0.3-arm64.apk",
- "sha256Url": "https://github.com/endorphin4/dsh-harness/releases/download/v1.0.3/dsh-harness-1.0.3-arm64.apk.sha256"
+ "pageUrl": "https://github.com/endorphin4/dsh-harness/releases/tag/v1.0.4",
+ "notes": "DSH Harness 1.0.4",
+ "apkUrl": "https://github.com/endorphin4/dsh-harness/releases/download/v1.0.4/dsh-harness-1.0.4-arm64.apk",
+ "sha256Url": "https://github.com/endorphin4/dsh-harness/releases/download/v1.0.4/dsh-harness-1.0.4-arm64.apk.sha256"
 }

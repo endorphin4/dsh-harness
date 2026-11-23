@@ -1,5 +1,16 @@
 # 变更记录
 
+## 1.0.4 — 2026-11-23
+
+### 修复
+
+- **聊天框「+」里的「文件」点了没反应**：WebView 的 `WebChromeClient` 没实现 `onShowFileChooser`，
+  页面里任何 `<input type="file">` 都拿不到回调。现补上：
+  - `onShowFileChooser` → 用 `FileChooserParams.createIntent()` 拉起系统选择器（失败回退 `ACTION_GET_CONTENT`）
+  - `onActivityResult` → 把选中结果（含多选）回传给 WebView
+  - 日志里会留一行「页面请求选择文件」，方便确认回调是否真的被触发
+
+
 ## 1.0.3 — 2026-11-23
 
 - **引擎清单也改走 GitHub API**：实测 jsDelivr 对分支路径按路径缓存、**忽略 `?dshb=` 查询参数**，
