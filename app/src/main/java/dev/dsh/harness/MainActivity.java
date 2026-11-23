@@ -854,6 +854,11 @@ public class MainActivity extends Activity {
                         String u = req.getUrl().toString();
                         Life.note(MainActivity.this, "新窗口导航 " + u);
                         if (u.startsWith("about:") || Utils.isLocal(u)) return false;
+                        if (isAuthUrl(u)) {
+                            // 登录/授权必须留在同一个 WebView，否则 cookie 留不下来
+                            Life.note(MainActivity.this, "授权页保留在应用内：" + u);
+                            return false;
+                        }
                         if (Utils.looksLikeApk(u)) {
                             startDownload(u, null, null);
                             closePopup();
@@ -869,6 +874,21 @@ public class MainActivity extends Activity {
                     public void onPageFinished(WebView v, String url) {
                         Life.note(MainActivity.this, "新窗口加载完成 " + url);
                     }
+
+                        @Override
+                        public void onReceivedError(WebView v, android.webkit.WebResourceRequest req,
+                                                    android.webkit.WebResourceError err) {
+                            try {
+                                String bad = req == null ? "" : req.getUrl().toString();
+                                if (bad.isEmpty() || bad.startsWith("about:")) return;
+                                Life.note(MainActivity.this, "授权页加载失败 " + bad);
+                                if (isAuthUrl(bad)) {
+                                    openExternal(bad);
+                                    closePopup();
+                                    toast("授权页在应用内打不开，已转交系统浏览器；登录后请回到应用");
+                                }
+                            } catch (Throwable ignored) { }
+                        }
                 });
                 popup = w;
                 root.addView(w, new FrameLayout.LayoutParams(
@@ -1989,6 +2009,21 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * 是否是登录/授权地址。
+     *
+     * <p>这类页面必须留在 WebView 里完成：cookie 存在 WebView 的 CookieManager 里，
+     * 一旦甩到系统浏览器，授权成功后 cookie 落在浏览器那边，App 永远显示未登录
+     * （2026-11-23 实测：授权页提示成功，返回 App 仍要求登录）。
+     */
+    private static boolean isAuthUrl(String u) {
+        if (u == null) return false;
+        String s = u.toLowerCase();
+        if (s.contains("deepseek.com")) return true;
+        return s.contains("/oauth") || s.contains("/authorize") || s.contains("/sign_in")
+                || s.contains("/signin") || s.contains("/login") || s.contains("/sso");
+    }
+
     /** 下载链接是不是一个 APK（GitHub release 资产就是 .../<name>.apk）。 */
     
     
@@ -2009,8 +2044,25 @@ public class MainActivity extends Activity {
         popup = null;
         if (w == null) return;
         if (w.getParent() instanceof ViewGroup) ((ViewGroup) w.getParent()).removeView(w);
+        try {
+            String cookies = android.webkit.CookieManager.getInstance()
+                    .getCookie("http://127.0.0.1:" + Engine.port() + "/");
+            Life.note(this, "关闭新窗口，cookie=" + (cookies == null ? "无" : (cookies.split(";").length + " 项")));
+        } catch (Throwable ignored) { }
         w.destroy();
         Life.note(this, "关闭新窗口");
+        // 授权页关闭 = 登录流程走完，主页面重载一次才会显示已登录
+        ui.postDelayed(() -> {
+            try {
+                String token = Engine.token();
+                if (web != null && token != null) {
+                    web.loadUrl("http://127.0.0.1:" + Engine.port() + "/?token=" + token);
+                    Life.note(this, "授权后重载主页面");
+                }
+            } catch (Throwable e) {
+                Life.note(this, "授权后重载失败：" + e);
+            }
+        }, 400);
     }
 
     private void toast(String msg) {
