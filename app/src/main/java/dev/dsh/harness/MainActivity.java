@@ -873,6 +873,18 @@ public class MainActivity extends Activity {
                     @Override
                     public void onPageFinished(WebView v, String url) {
                         Life.note(MainActivity.this, "新窗口加载完成 " + url);
+
+                        if (isAuthUrl(url)) {
+                            v.evaluateJavascript(
+                                    "(()=>{try{return (document.body&&document.body.innerText)||''}catch(e){return ''}})()",
+                                    t -> {
+                                        String txt = t == null ? "" : t;
+                                        if (txt.contains("授权已完成") || txt.contains("登录成功")) {
+                                            Life.note(MainActivity.this, "检测到授权完成页，自动关闭并重载");
+                                            ui.postDelayed(() -> closePopup(), 900);
+                                        }
+                                    });
+                        }
                     }
 
                         @Override
@@ -2052,17 +2064,18 @@ public class MainActivity extends Activity {
         w.destroy();
         Life.note(this, "关闭新窗口");
         // 授权页关闭 = 登录流程走完，主页面重载一次才会显示已登录
+        // 只做 reload：cookie 已经落在同一个 WebView 里，再拼 ?token= 会让前端重新初始化一遍，
+        // 反而触发「页面出现了一些异常」（2026-11-23 录屏实测）。
         ui.postDelayed(() -> {
             try {
-                String token = Engine.token();
-                if (web != null && token != null) {
-                    web.loadUrl("http://127.0.0.1:" + Engine.port() + "/?token=" + token);
-                    Life.note(this, "授权后重载主页面");
+                if (web != null) {
+                    web.reload();
+                    Life.note(this, "授权后重载主页面（reload，保留 cookie）");
                 }
             } catch (Throwable e) {
                 Life.note(this, "授权后重载失败：" + e);
             }
-        }, 400);
+        }, 600);
     }
 
     private void toast(String msg) {
