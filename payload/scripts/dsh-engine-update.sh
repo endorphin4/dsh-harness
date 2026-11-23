@@ -131,6 +131,16 @@ fi
 log "已切换，旧版本在 $BACKUP"
 stage "swap" "已切换，准备重启" 88
 
+# 换装成功后清掉 App 下载到 updates/ 的引擎包：否则每更新一次就多留 100~160 MB。
+# 只删"从 updates/ 来"的本地包，远端 URL 模式没有本地文件可删。
+case "$TAR_URL" in
+  "$ROOT"/updates/*.tar.gz|"$ROOT"/updates/*.tar)
+    if [ -f "$TAR_URL" ]; then
+      rm -f "$TAR_URL" && log "已清理更新包：$TAR_URL"
+    fi
+    ;;
+esac
+
 # 只留最近 2 份旧版本，别把私有目录撑爆
 ls -1dt "$MODULES/@deepseek-ai"/dsh.old-* 2>/dev/null | tail -n +3 | while IFS= read -r old; do rm -rf "$old"; done
 

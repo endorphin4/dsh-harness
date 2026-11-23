@@ -65,6 +65,7 @@ fi
 # 引擎构建脚本 + 补丁集/锁文件：App 内「从 npm 构建」时用（assets 自愈，免重打载荷）
 cp -f "$PROJ/payload/scripts/dsh-engine-build.sh" "$APP/assets/engine-build.sh"
 cp -f "$PROJ/payload/scripts/dsh-engine-port.sh" "$APP/assets/engine-port.sh"
+cp -f "$PROJ/payload/scripts/dsh-engine-update.sh" "$APP/assets/engine-update.sh"
 rm -rf "$APP/assets/engine-build"; mkdir -p "$APP/assets/engine-build"
 if [ -d "$PROJ/scripts/engine/patches" ]; then
   for pdir in "$PROJ"/scripts/engine/patches/*/; do

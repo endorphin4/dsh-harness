@@ -1,8 +1,8 @@
 {
-  "version": "0.2.1-rc.2",
-  "pageUrl": "",
-  "publishedAt": "",
-  "tar": "",
-  "sha256": "",
-  "size": 0
+ "version": "0.2.2-rc.5",
+ "pageUrl": "https://github.com/endorphin4/dsh-harness/releases/tag/engine-v0.2.2-rc.5",
+ "publishedAt": "2026-11-23T09:24:14+08:00",
+ "tar": "https://github.com/endorphin4/dsh-harness/releases/download/engine-v0.2.2-rc.5/dsh-engine-0.2.2-rc.5-android-arm64.tar.gz",
+ "sha256": "d6e502c76f97c057c92bcaf577a243909cb8b83dc0f94c25ac553a29b20dff32",
+ "size": 164757439
 }

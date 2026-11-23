@@ -1033,6 +1033,32 @@ final class Rootfs {
     }
 
     /** 从安装包自愈构建脚本（免去打载荷）。 */
+    /** 把「换装脚本」自愈到 files/home/试玩/：以前它只存在于载荷里，改了代码也发不下去。 */
+    static String ensureEngineUpdateScript(Context ctx) {
+        File dst = new File(dir(ctx), "home/试玩/dsh-engine-update.sh");
+        try {
+            byte[] want;
+            try (InputStream in = ctx.getAssets().open("engine-update.sh")) {
+                java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
+                want = bos.toByteArray();
+            }
+            if (dst.isFile() && java.util.Arrays.equals(Files.readAllBytes(dst.toPath()), want)) {
+                return "引擎换装脚本：已是最新";
+            }
+            File d = dst.getParentFile();
+            if (d != null && !d.isDirectory() && !d.mkdirs()) throw new IOException("建不了 " + d);
+            Files.write(dst.toPath(), want);
+            //noinspection ResultOfMethodCallIgnored
+            dst.setExecutable(true, false);
+            return "引擎换装脚本：已更新（" + want.length + " B）";
+        } catch (Throwable e) {
+            return "引擎换装脚本自愈失败：" + e;
+        }
+    }
+
     static String ensureEngineBuildScript(Context ctx) {
         File dst = new File(dir(ctx), "home/试玩/dsh-engine-build.sh");
         try {

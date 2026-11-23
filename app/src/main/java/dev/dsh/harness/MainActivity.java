@@ -266,6 +266,7 @@ public class MainActivity extends Activity {
         new Thread(() -> Life.note(this, Rootfs.ensureAptIndex(root)), "apt-index").start();
         Life.note(this, Rootfs.ensurePtyBinding(this));
         Life.note(this, Rootfs.ensureEngineBuildScript(this));
+        Life.note(this, Rootfs.ensureEngineUpdateScript(this));
         Life.note(this, Rootfs.ensureEnginePortScript(this));
         // 引擎已在跑时 Engine.ensure() 会直接返回，所以别名这里无条件补一次（幂等）
         Rootfs.ensurePrefixLinks(root);
