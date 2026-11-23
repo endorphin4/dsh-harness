@@ -1287,11 +1287,74 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * 从 GitHub Releases API 找最新一个 {@code engine-v*} 发布，合成引擎更新清单。
+     *
+     * <p>为什么需要：CDN 的 {@code @main} 有小时级缓存且忽略查询参数，发版后引擎清单会一直是旧值。
+     */
+    private String engineFromApi(String repo) {
+        String txt = Utils.fetchFresh("https://api.github.com/repos/" + repo + "/releases?per_page=20", 8000);
+        if (txt == null) return null;
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray(txt);
+            String bestVer = null, bestTar = null, bestSha = null;
+            long bestSize = 0;
+            for (int i = 0; i < arr.length(); i++) {
+                org.json.JSONObject r = arr.optJSONObject(i);
+                if (r == null) continue;
+                String tag = r.optString("tag_name", "");
+                if (!tag.startsWith("engine-v")) continue;
+                String ver = tag.substring("engine-v".length());
+                String tar = null, shaUrl = null;
+                long size = 0;
+                org.json.JSONArray as = r.optJSONArray("assets");
+                for (int k = 0; as != null && k < as.length(); k++) {
+                    org.json.JSONObject a = as.optJSONObject(k);
+                    if (a == null) continue;
+                    String n = a.optString("name", "");
+                    if (n.endsWith(".tar.gz")) {
+                        tar = a.optString("browser_download_url", null);
+                        size = a.optLong("size", 0);
+                    } else if (n.endsWith(".tar.gz.sha256")) {
+                        shaUrl = a.optString("browser_download_url", null);
+                    }
+                }
+                if (tar == null) continue;
+                if (bestVer == null || Utils.cmpVersion(ver, bestVer) > 0) {
+                    bestVer = ver;
+                    bestTar = tar;
+                    bestSize = size;
+                    bestSha = null;
+                    if (shaUrl != null) {
+                        String body = Utils.fetchFresh(shaUrl, 6000);
+                        if (body != null) {
+                            String first = body.trim().split("\\s+")[0];
+                            if (first.matches("[0-9a-f]{64}")) bestSha = first;
+                        }
+                    }
+                }
+            }
+            if (bestVer == null) return null;
+            org.json.JSONObject o = new org.json.JSONObject();
+            o.put("version", bestVer);
+            o.put("tar", bestTar);
+            o.put("size", bestSize);
+            if (bestSha != null) o.put("sha256", bestSha);
+            o.put("source", "github-api");
+            return o.toString();
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
     /** 取引擎更新清单：本机镜像 → 本机 8099 → CDN/raw（都带缓存击穿）。 */
     private String engineManifest(String repo) {
         String j = Utils.fetchText("http://127.0.0.1:8098/engine-latest.json", 2500);
         if (j != null) return j;
         j = Utils.fetchText("http://127.0.0.1:8099/engine-latest.json", 4000);
+        if (j != null) return j;
+        // CDN 的 @main 有小时级缓存（且忽略查询参数），所以优先问 GitHub API
+        j = engineFromApi(repo);
         if (j != null) return j;
         j = Utils.fetchFresh("https://gcore.jsdelivr.net/gh/" + repo + "@main/engine/latest.json", 7000);
         if (j != null) return j;
