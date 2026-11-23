@@ -18,6 +18,9 @@ import android.util.Log;
  * 声明 FOREGROUND_SERVICE_* 类型，通知也不需要运行时授权。
  */
 public class EngineService extends Service {
+
+    /** 上次写进通知栏的文案：用来判断"引擎好了但通知还挂着失败"，并纠正它。 */
+    private String lastNoteText;
     private static final String TAG = "DSH-B";
     private static final String CHANNEL = "engine-run";
     private static final int NOTIF_ID = 42;
@@ -79,6 +82,7 @@ public class EngineService extends Service {
 
     /** startForeground 在坏通知/权限变化时可能抛，服务不能因此崩掉整个进程。 */
     private void startForegroundSafely(String text) {
+        lastNoteText = text;
         try {
             startForeground(NOTIF_ID, notify(text));
         } catch (Throwable e) {
@@ -157,8 +161,14 @@ public class EngineService extends Service {
                 }
                 if (Engine.isRunning()) {
                     quiet = 0;
+                    // 引擎已经好了，但通知栏可能还挂着上一次的失败文案 —— 纠正回来
+                    if (lastNoteText != null && !"引擎运行中".equals(lastNoteText)) {
+                        startForegroundSafely("引擎运行中");
+                    }
                     continue;
                 }
+                // 另一次启动正在进行：这不是失败，别记错也别打扰它
+                if (Engine.isStarting()) continue;
                 // 刚拉起来还没跑起来的那段时间不算「死了」
                 if (System.currentTimeMillis() - lastSpawnHint < 15000) continue;
                 quiet++;
@@ -169,7 +179,13 @@ public class EngineService extends Service {
                 startForegroundSafely("引擎已停止，正在重新启动…");
                 try {
                     Engine.ensure(this, this::startForegroundSafely);
-                    startForegroundSafely(Engine.isUp() ? "引擎运行中" : "引擎未运行");
+                    if (Engine.isUp()) {
+                        startForegroundSafely("引擎运行中");
+                    } else if (Engine.isStarting()) {
+                        startForegroundSafely("正在启动引擎…");
+                    } else {
+                        startForegroundSafely("引擎启动失败：" + friendly(Engine.lastError()));
+                    }
                     // 引擎换了新进程（升级/重启之后），页面还连着旧连接 —— 让界面自己重新加载
                     Runnable after = Engine.onRestarted;
                     if (after != null) {

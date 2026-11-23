@@ -39,6 +39,9 @@ final class Engine {
     private static String token;
     private static final List<String> tail = new ArrayList<>();
     private static volatile boolean preparing;
+
+    /** 是否已有一次启动在进行中（并发调用 ensure 会拿到 null，不代表失败）。 */
+    static boolean isStarting() { return preparing; }
     private static volatile String lastError;
     private static File engineLog;
 
