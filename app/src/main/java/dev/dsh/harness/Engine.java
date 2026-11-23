@@ -24,6 +24,10 @@ import java.util.regex.Pattern;
  * 谁先起来谁拉起，后到的复用。
  */
 final class Engine {
+
+    /** 启动中/被主动打断：用来区分「引擎真的坏了」与「我们自己把它停了」。 */
+    private static volatile boolean booting;
+    private static volatile boolean interruptedBoot;
     private static final String TAG = "DSH-B";
     private static final long BOOT_TIMEOUT_MS = 90000;
     private static final Pattern TOKEN = Pattern.compile("token=([A-Za-z0-9_-]{20,})");
@@ -96,6 +100,38 @@ final class Engine {
         }
     }
 
+
+    /**
+     * 启动前体检：把「装完能开但引擎起不来」这类问题，变成一句能看懂的话。
+     *
+     * <p>历史背景：某些系统/文件系统上解包后软链或可执行位可能没落下来，
+     * 以往表现为一个笼统的「引擎没起来」，根本看不出是环境不完整。
+     */
+    private static String preflight(File root) {
+        File node = new File(root, "usr/bin/node");
+        if (!node.isFile()) return "运行环境不完整：缺少 usr/bin/node";
+        if (!node.canExecute()) return "运行环境不完整：usr/bin/node 不可执行";
+        File bash = new File(root, "usr/bin/bash");
+        if (!bash.isFile()) return "运行环境不完整：缺少 usr/bin/bash";
+        File pkg = new File(root, "usr/lib/node_modules/@deepseek-ai/dsh/package.json");
+        if (!pkg.isFile()) return "运行环境不完整：引擎包缺失（@deepseek-ai/dsh）";
+        // 软链能否解析：抽查一个 alternatives 链接，解析失败说明该文件系统不支持软链
+        java.nio.file.Path link = new File(root, "usr/etc/alternatives/editor").toPath();
+        if (java.nio.file.Files.exists(link) || java.nio.file.Files.isSymbolicLink(link)) {
+            try {
+                java.nio.file.Path base = link.getParent();
+                java.nio.file.Path target = java.nio.file.Files.readSymbolicLink(link);
+                java.nio.file.Path resolved = (target.isAbsolute() ? target : base.resolve(target)).normalize();
+                if (!java.nio.file.Files.exists(resolved)) {
+                    return "运行环境软链无法解析：" + link + " → " + target;
+                }
+            } catch (Throwable e) {
+                return "运行环境不支持软链接（" + e + "）";
+            }
+        }
+        return null;
+    }
+
     static synchronized String ensure(final Context ctx, final Note note) throws Exception {
         final File root = Rootfs.dir(ctx);
         tokenFile = new File(root, "engine.token");
@@ -138,8 +174,26 @@ final class Engine {
                 }
             }
 
+            String pre = preflight(root);
+            if (pre != null) {
+                lastError = pre;
+                return null;
+            }
             if (note != null) note.say("启动引擎（linker64 + node）…");
-            String t = spawn(root, note);
+            booting = true;
+            interruptedBoot = false;
+            String t;
+            try {
+                t = spawn(root, note);
+            } finally {
+                booting = false;
+            }
+            if (interruptedBoot) {
+                // 我们自己在启动过程中调了 stop()（换版本/重启/看门狗），这不叫「引擎坏了」
+                interruptedBoot = false;
+                lastError = null;
+                return null;
+            }
             if (t == null && rollbackEngine(ctx)) {
                 // 新引擎起不来（升级包有问题）：换回上一版，再试一次。
                 if (note != null) note.say("新引擎没起来，已回滚到上一版…");
@@ -154,6 +208,12 @@ final class Engine {
             writeToken(t);
             return t;
         } catch (Throwable e) {
+            if (interruptedBoot || (e instanceof java.io.InterruptedIOException)) {
+                interruptedBoot = false;
+                lastError = null;
+                Life.note(ctx, "引擎启动被主动中断（换版本/重启），按正常停止处理");
+                return null;
+            }
             lastError = String.valueOf(e);
             throw e;
         } finally {
@@ -163,6 +223,7 @@ final class Engine {
 
     /** 主动停止（通知里的「停止引擎」）。 */
     static void stop() {
+        if (booting) interruptedBoot = true;
         Process p = proc;
         proc = null;
         token = null;

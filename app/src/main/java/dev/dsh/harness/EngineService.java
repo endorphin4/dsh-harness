@@ -64,7 +64,7 @@ public class EngineService extends Service {
                 if (Engine.isUp()) {
                     startForegroundSafely("引擎运行中");
                 } else {
-                    startForegroundSafely("引擎启动失败：" + Engine.lastError());
+                    startForegroundSafely("引擎启动失败：" + friendly(Engine.lastError()));
                 }
             } catch (Throwable t) {
                 Log.e(TAG, "service ensure 失败", t);
@@ -129,6 +129,22 @@ public class EngineService extends Service {
      * 这是「保活」的第二层 —— 前台服务保的是<b>我们的进程</b>，这里保的是<b>node 进程</b>：
      * 它可能自己退出（配置错、崩溃），也可能被系统在内存吃紧时杀掉，两者都要能自愈。
      */
+
+    /** 把底层异常翻译成人话：通知栏不该出现 java 类名。 */
+    private static String friendly(String raw) {
+        if (raw == null || raw.isEmpty()) return "正在重试";
+        String s = raw;
+        if (s.contains("InterruptedIOException") || s.contains("read interrupted")
+                || s.contains("interrupted by close")) {
+            return "启动被中断，正在重试";
+        }
+        if (s.contains("90 秒内没拿到 token")) return "引擎启动超时，正在重试";
+        if (s.contains("No such file") || s.contains("ENOENT")) return "运行环境文件缺失，正在重试";
+        if (s.contains("Permission denied") || s.contains("EACCES")) return "运行环境权限异常，正在重试";
+        if (s.length() > 80) s = s.substring(0, 80) + "…";
+        return s;
+    }
+
     private void startSupervisor() {
         if (supervisor != null) return;
         supervisor = new Thread(() -> {
@@ -146,6 +162,9 @@ public class EngineService extends Service {
                 // 刚拉起来还没跑起来的那段时间不算「死了」
                 if (System.currentTimeMillis() - lastSpawnHint < 15000) continue;
                 quiet++;
+                // 连续失败要退避，否则通知栏会被同一条错误反复刷屏
+                long wait = quiet >= 6 ? 60000L : quiet >= 3 ? 30000L : quiet >= 2 ? 15000L : 0L;
+                if (wait > 0 && System.currentTimeMillis() - lastSpawnHint < wait) continue;
                 Life.note(this, "看门狗：引擎不在了（第 " + quiet + " 次），重新拉起");
                 startForegroundSafely("引擎已停止，正在重新启动…");
                 try {
