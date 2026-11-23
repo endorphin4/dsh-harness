@@ -313,7 +313,7 @@ public class MainActivity extends Activity {
                 // 与其等 15 秒自检，不如当场重启一次拿新令牌。
                 Life.note(this, "启动时没有现成 token，重启引擎取新令牌");
                 Engine.stop();
-                t = Engine.ensure(this, msg -> note("正在重新唤醒大肥鱼…"));
+                t = Engine.ensure(this, msg -> note("正在重新启动引擎…"));
                 long d2 = System.currentTimeMillis() + 60000;
                 while (!Engine.httpReady() && System.currentTimeMillis() < d2) {
                     try { Thread.sleep(300); } catch (InterruptedException e) { return; }
@@ -324,7 +324,7 @@ public class MainActivity extends Activity {
             if (probeReleaseApi() == 404) {
                 Life.note(this, "更新接口 404：引擎进程没加载当前插件，重启引擎");
                 Engine.stop();
-                t = Engine.ensure(this, msg -> note("正在重新唤醒大肥鱼…"));
+                t = Engine.ensure(this, msg -> note("正在重新启动引擎…"));
                 long d3 = System.currentTimeMillis() + 60000;
                 while (!Engine.httpReady() && System.currentTimeMillis() < d3) {
                     try { Thread.sleep(300); } catch (InterruptedException e) { return; }
@@ -361,6 +361,8 @@ public class MainActivity extends Activity {
     /** 页面 <input type=file> 的回调；不接这个，点「文件」就毫无反应。 */
     private android.webkit.ValueCallback<android.net.Uri[]> fileChooserCallback;
     private static final int REQ_FILE_CHOOSER = 0x2001;
+    private static final int REQ_MEDIA_PERM = 0x2002;
+    private android.webkit.PermissionRequest pendingPermissionRequest;
 
     /** 每次启动只尝试一次的「插件加载失败」自愈。 */
     private boolean pluginRepairTried;
@@ -449,26 +451,34 @@ public class MainActivity extends Activity {
             StringBuilder log = new StringBuilder();
             int from = Math.max(0, tail.size() - 8);
             for (int i = from; i < tail.size(); i++) log.append(tail.get(i)).append('\n');
+            final String plain = detail.replaceFirst("^启动失败：", "");
             String html = "<!doctype html><meta name=viewport content='width=device-width,initial-scale=1'>"
                     + "<body style='margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;"
-                    + "background:#101114;color:#eceef1;font:15px/1.65 system-ui,-apple-system,sans-serif'>"
-                    + "<div style='max-width:440px;width:100%;padding:28px;box-sizing:border-box'>"
-                    + "<div style='font-size:34px;line-height:1'>\uD83D\uDC1F</div>"
-                    + "<h1 style='font-size:19px;margin:14px 0 10px;font-weight:600'>大肥鱼没醒过来</h1>"
-                    + "<p style='margin:0 0 14px;color:#a8adb6;font-size:14px;white-space:pre-wrap'>"
-                    + Utils.esc(detail) + "</p>"
+                    + "background:#0F1115;color:#E8EAED;font:15px/1.6 -apple-system,system-ui,'Segoe UI',Roboto,sans-serif'>"
+                    + "<div style='max-width:460px;width:100%;padding:28px;box-sizing:border-box'>"
+                    + "<div style='font-size:12px;letter-spacing:.14em;color:#6B7280'>DEEPSEEK HARNESS</div>"
+                    + "<h1 style='font-size:20px;margin:14px 0 8px;font-weight:600'>引擎启动失败</h1>"
+                    + "<p style='margin:0 0 18px;color:#9AA0A6;font-size:14px'>"
+                    + "应用需要本地引擎才能工作，本次未能启动。请点击下方“重试”。</p>"
+                    + "<div style='border:1px solid #23272E;border-radius:12px;background:#16181D;padding:14px 16px;margin:0 0 16px'>"
+                    + "<div style='font-size:12px;color:#6B7280;margin-bottom:8px'>错误信息</div>"
+                    + "<div style='font:12.5px/1.6 ui-monospace,Menlo,monospace;color:#C9CED6;"
+                    + "white-space:pre-wrap;word-break:break-word'>" + Utils.esc(plain) + "</div>"
                     + (log.length() > 0
-                        ? "<details style='margin:0 0 16px'><summary style='cursor:pointer;color:#8f959f;font-size:13px'>最后几行输出</summary>"
-                          + "<pre style='margin:8px 0 0;padding:10px 12px;border-radius:10px;background:#1b1c20;color:#9aa0a6;"
-                          + "font:11px/16px ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;max-height:140px;overflow:auto'>"
+                        ? "<details style='margin:12px 0 0'><summary style='cursor:pointer;color:#8B93A1;font-size:12.5px'>技术详情</summary>"
+                          + "<pre style='margin:8px 0 0;padding:10px 12px;border-radius:8px;background:#0F1115;color:#8B93A1;"
+                          + "font:11px/16px ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all;"
+                          + "max-height:160px;overflow:auto;border:1px solid #23272E'>"
                           + Utils.esc(log.toString()) + "</pre></details>"
                         : "")
+                    + "</div>"
                     + (logName != null
-                        ? "<p style='margin:0 0 16px;color:#6c727b;font-size:12px'>诊断日志已回传：logs/" + Utils.esc(logName) + "</p>"
+                        ? "<p style='margin:0 0 16px;color:#6B7280;font-size:12px'>诊断日志已保存：" + Utils.esc(logName) + "</p>"
                         : "")
                     + "<button onclick='DSHShell.retry()' style='width:100%;height:46px;border:0;border-radius:12px;"
-                    + "background:#f2f4f7;color:#111;font-size:15px;font-weight:600'>重试</button>"
-                    + "<p style='margin:12px 0 0;color:#6c727b;font-size:12px;text-align:center'>还是不行就完全退出 App 再打开</p>"
+                    + "background:#E8EAED;color:#0F1115;font-size:15px;font-weight:600'>重试</button>"
+                    + "<p style='margin:14px 0 0;color:#6B7280;font-size:12.5px;line-height:1.6'>"
+                    + "若多次失败：完全退出应用后重新打开；仍无法解决可在系统设置中清除本应用数据（会删除对话记录）。</p>"
                     + "</div></body>";
             w.loadDataWithBaseURL("http://127.0.0.1/", html, "text/html", "utf-8", null);
         });
@@ -747,7 +757,7 @@ public class MainActivity extends Activity {
             Life.note(MainActivity.this, "错误页点了重试");
             ui.post(() -> {
                 loaded = false;
-                note("正在重新唤醒大肥鱼…");
+                note("正在重新启动引擎…");
                 new Thread(MainActivity.this::boot, "boot-retry").start();
             });
         }
@@ -757,6 +767,22 @@ public class MainActivity extends Activity {
     /** 主 WebView 的行为：本地页面自己渲染，外部链接交给系统浏览器，新窗口单独接住。 */
     private void wireBrowser(final FrameLayout root) {
         web.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                boolean crashed = detail != null && detail.didCrash();
+                Life.note(MainActivity.this, "WebView 渲染进程结束（didCrash=" + crashed + "），准备重建页面");
+                try {
+                    android.view.ViewGroup parent = (android.view.ViewGroup) view.getParent();
+                    if (parent != null) parent.removeView(view);
+                    view.destroy();
+                } catch (Throwable ignored) { }
+                if (web == view) web = null;
+                ui.postDelayed(() -> {
+                    try { recreate(); } catch (Throwable e) { Life.note(MainActivity.this, "重建页面失败：" + e); }
+                }, 250);
+                return true;
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, android.webkit.WebResourceRequest req) {
                 String u = req.getUrl().toString();
@@ -855,6 +881,49 @@ public class MainActivity extends Activity {
                 t.setWebView(w);
                 resultMsg.sendToTarget();
                 return true;
+            }
+
+            @Override
+            public boolean onConsoleMessage(android.webkit.ConsoleMessage m) {
+                try {
+                    if (m != null && (m.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR
+                            || m.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.WARNING)) {
+                        Life.note(MainActivity.this, "页面控制台[" + m.messageLevel() + "] " + m.message()
+                                + " @" + m.sourceId() + ":" + m.lineNumber());
+                    }
+                } catch (Throwable ignored) { }
+                return true;
+            }
+
+            @Override
+            public void onPermissionRequest(final android.webkit.PermissionRequest request) {
+                try {
+                    boolean needAudio = false, needVideo = false;
+                    for (String r : request.getResources()) {
+                        if (r == null) continue;
+                        if (r.startsWith("android.webkit.resource.AUDIO_CAPTURE")) needAudio = true;
+                        if (r.startsWith("android.webkit.resource.VIDEO_CAPTURE")) needVideo = true;
+                    }
+                    Life.note(MainActivity.this, "页面请求媒体权限 audio=" + needAudio + " video=" + needVideo);
+                    java.util.List<String> missing = new java.util.ArrayList<>();
+                    if (needAudio && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        missing.add(android.Manifest.permission.RECORD_AUDIO);
+                    }
+                    if (needVideo && checkSelfPermission(android.Manifest.permission.CAMERA)
+                            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        missing.add(android.Manifest.permission.CAMERA);
+                    }
+                    if (missing.isEmpty()) { request.grant(request.getResources()); return; }
+                    if (pendingPermissionRequest != null) {
+                        try { pendingPermissionRequest.deny(); } catch (Throwable ignored) { }
+                    }
+                    pendingPermissionRequest = request;
+                    requestPermissions(missing.toArray(new String[0]), REQ_MEDIA_PERM);
+                } catch (Throwable e) {
+                    Life.note(MainActivity.this, "处理媒体权限失败：" + e);
+                    try { request.deny(); } catch (Throwable ignored) { }
+                }
             }
 
             @Override
@@ -2426,6 +2495,24 @@ public class MainActivity extends Activity {
 
     private float dp(float v) {
         return v * getResources().getDisplayMetrics().density;
+    }
+
+    /** 运行时权限结果：把媒体权限的结论回传给页面。 */
+    @Override
+    public void onRequestPermissionsResult(int req, String[] perms, int[] granted) {
+        if (req == REQ_MEDIA_PERM) {
+            android.webkit.PermissionRequest pr = pendingPermissionRequest;
+            pendingPermissionRequest = null;
+            if (pr == null) return;
+            boolean all = granted != null && granted.length > 0;
+            for (int g : granted) if (g != android.content.pm.PackageManager.PERMISSION_GRANTED) all = false;
+            try {
+                if (all) pr.grant(pr.getResources()); else pr.deny();
+            } catch (Throwable e) { Life.note(this, "回传媒体权限失败：" + e); }
+            Life.note(this, "媒体权限结果 granted=" + all);
+            return;
+        }
+        super.onRequestPermissionsResult(req, perms, granted);
     }
 
     /** 文件选择结果回传给 WebView（多选回传数组）。 */

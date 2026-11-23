@@ -1,5 +1,22 @@
 # 变更记录
 
+## 1.0.5 — 2026-11-23
+
+### 修复
+
+- **新设备首装启动失败 `EISDIR`**：载荷解包时若某路径残留了类型相反的条目（旧目录 vs 新文件），
+  `FileOutputStream` 会抛 `open failed: EISDIR`。现在解包遇到类型冲突先清掉再写，可自愈
+- **WebView 媒体权限**：补 `onPermissionRequest` + `RECORD_AUDIO`/`CAMERA` 权限，语音输入不再"点了没反应"
+- **WebView 渲染进程崩溃**：补 `onRenderProcessGone`，自动重建页面而不是留白屏
+- **页面 JS 报错无日志**：补 `onConsoleMessage`，ERROR/WARN 写入 `life.log`
+- **软键盘可能遮挡输入框**：Activity 增加 `windowSoftInputMode="adjustResize"`
+
+### 文案与界面
+
+- 全部去掉「大肥鱼」：通知栏改为「正在启动引擎… / 引擎运行中 / 引擎已停止，正在重新启动…」
+- 启动失败页重做：去掉 emoji，改为正式标题「引擎启动失败」+ 错误信息卡片 + 可折叠「技术详情」+ 重试按钮
+
+
 ## 1.0.4 — 2026-11-23
 
 ### 修复

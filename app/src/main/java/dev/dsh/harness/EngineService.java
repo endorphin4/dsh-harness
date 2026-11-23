@@ -36,7 +36,7 @@ public class EngineService extends Service {
                     NotificationManager.IMPORTANCE_LOW); // LOW：安静（无声/无振动/不进锁屏），但确实是可见的前台服务
         // 别用 IMPORTANCE_MIN：部分版本会把它当成"没有可见通知"，前台服务因此不被计入存活理由，
         // 切后台约 1 分钟后整个进程被系统回收（我们 16:59 就是这样被杀的）。
-            ch.setDescription("DSH 引擎（大肥鱼）的前台运行状态");
+            ch.setDescription("DSH 引擎的运行状态；关闭此通知会停止引擎");
             ch.setShowBadge(false);
             ch.enableLights(false);
             ch.enableVibration(false);
@@ -57,14 +57,14 @@ public class EngineService extends Service {
         }
 
         lastSpawnHint = System.currentTimeMillis();
-        startForegroundSafely("正在唤醒大肥鱼…");
+        startForegroundSafely("正在启动引擎…");
         new Thread(() -> {
             try {
                 Engine.ensure(this, this::startForegroundSafely);
                 if (Engine.isUp()) {
-                    startForegroundSafely("大肥鱼在运行");
+                    startForegroundSafely("引擎运行中");
                 } else {
-                    startForegroundSafely("大肥鱼没醒：" + Engine.lastError());
+                    startForegroundSafely("引擎启动失败：" + Engine.lastError());
                 }
             } catch (Throwable t) {
                 Log.e(TAG, "service ensure 失败", t);
@@ -147,10 +147,10 @@ public class EngineService extends Service {
                 if (System.currentTimeMillis() - lastSpawnHint < 15000) continue;
                 quiet++;
                 Life.note(this, "看门狗：引擎不在了（第 " + quiet + " 次），重新拉起");
-                startForegroundSafely("引擎掉了，正在重新唤醒大肥鱼…");
+                startForegroundSafely("引擎已停止，正在重新启动…");
                 try {
                     Engine.ensure(this, this::startForegroundSafely);
-                    startForegroundSafely(Engine.isUp() ? "大肥鱼在运行" : "大肥鱼没醒");
+                    startForegroundSafely(Engine.isUp() ? "引擎运行中" : "引擎未运行");
                     // 引擎换了新进程（升级/重启之后），页面还连着旧连接 —— 让界面自己重新加载
                     Runnable after = Engine.onRestarted;
                     if (after != null) {

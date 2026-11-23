@@ -1555,6 +1555,11 @@ final class Rootfs {
 
                 switch (type) {
                     case '5': { // 目录
+                        if (f.exists() && !f.isDirectory()) {
+                            Log.w(TAG, "路径类型冲突（应为目录），删除同名文件: " + name);
+                            //noinspection ResultOfMethodCallIgnored
+                            f.delete();
+                        }
                         if (!f.isDirectory() && !f.mkdirs()) Log.w(TAG, "建目录失败: " + name);
                         applyMode(f, mode);
                         break;
@@ -1588,6 +1593,11 @@ final class Rootfs {
                     case '\0':
                     case '7': { // 普通文件
                         ensureParent(f);
+                        // 同路径残留的旧目录会让 FileOutputStream 抛 EISDIR（新设备首装撞过），先清掉
+                        if (f.isDirectory()) {
+                            Log.w(TAG, "路径类型冲突（应为文件），删除同名目录: " + name);
+                            Backup.deleteTree(f);
+                        }
                         try (OutputStream out = new FileOutputStream(f)) {
                             copyN(gz, out, size);
                         }
