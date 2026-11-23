@@ -1230,12 +1230,76 @@ public class MainActivity extends Activity {
      * 查两边的版本并推给页面：外壳看 shell/latest.json，引擎看 engine/latest.json。
      * 三个来源按顺序试：本机 8099 → jsDelivr → raw.githubusercontent（GitHub 主域在我们这儿不可达）。
      */
+    /**
+     * 取外壳更新清单，按「新鲜度」排序：
+     * 本机镜像 8098 → 本机 8099 → GitHub Releases API（无缓存）→ jsDelivr（带缓存击穿）→ raw（带缓存击穿）。
+     *
+     * <p>API 优先于 CDN 的原因：CDN 的 {@code @main} 有小时级缓存，发版后读到的还是旧版本。
+     */
+    private String shellManifest(String repo) {
+        String j = Utils.fetchText("http://127.0.0.1:8098/shell-latest.json", 2500);
+        if (j != null) return j;
+        j = Utils.fetchText("http://127.0.0.1:8099/shell-latest.json", 4000);
+        if (j != null) return j;
+        j = shellFromApi(repo);
+        if (j != null) return j;
+        j = Utils.fetchFresh("https://gcore.jsdelivr.net/gh/" + repo + "@main/shell/latest.json", 7000);
+        if (j != null) return j;
+        return Utils.fetchFresh("https://raw.githubusercontent.com/" + repo + "/main/shell/latest.json", 7000);
+    }
+
+    /** 从 GitHub Releases API 合成一份与 shell/latest.json 等价的清单。 */
+    private String shellFromApi(String repo) {
+        String txt = Utils.fetchFresh("https://api.github.com/repos/" + repo + "/releases/latest", 7000);
+        if (txt == null) return null;
+        try {
+            org.json.JSONObject r = new org.json.JSONObject(txt);
+            String tag = r.optString("tag_name", "");
+            if (tag.startsWith("v")) tag = tag.substring(1);
+            if (tag.isEmpty()) return null;
+            org.json.JSONArray assets = r.optJSONArray("assets");
+            String apkUrl = null, shaUrl = null;
+            long size = 0;
+            if (assets != null) {
+                for (int i = 0; i < assets.length(); i++) {
+                    org.json.JSONObject a = assets.optJSONObject(i);
+                    if (a == null) continue;
+                    String n = a.optString("name", "");
+                    if (n.endsWith(".apk")) {
+                        apkUrl = a.optString("browser_download_url", null);
+                        size = a.optLong("size", 0);
+                    } else if (n.endsWith(".apk.sha256")) {
+                        shaUrl = a.optString("browser_download_url", null);
+                    }
+                }
+            }
+            if (apkUrl == null) return null;
+            org.json.JSONObject o = new org.json.JSONObject();
+            o.put("version", tag);
+            o.put("apkUrl", apkUrl);
+            if (shaUrl != null) o.put("sha256Url", shaUrl);
+            o.put("size", size);
+            o.put("source", "github-api");
+            return o.toString();
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    /** 取引擎更新清单：本机镜像 → 本机 8099 → CDN/raw（都带缓存击穿）。 */
+    private String engineManifest(String repo) {
+        String j = Utils.fetchText("http://127.0.0.1:8098/engine-latest.json", 2500);
+        if (j != null) return j;
+        j = Utils.fetchText("http://127.0.0.1:8099/engine-latest.json", 4000);
+        if (j != null) return j;
+        j = Utils.fetchFresh("https://gcore.jsdelivr.net/gh/" + repo + "@main/engine/latest.json", 7000);
+        if (j != null) return j;
+        return Utils.fetchFresh("https://raw.githubusercontent.com/" + repo + "/main/engine/latest.json", 7000);
+    }
+
     private void pushShellState() {
         final String repo = "endorphin4/dsh-harness";
-        String shellJson = Utils.fetchText("http://127.0.0.1:8098/shell-latest.json", 2500);
-        if (shellJson == null) shellJson = Utils.fetchText("http://127.0.0.1:8099/shell-latest.json", 4000);
-        if (shellJson == null) shellJson = Utils.fetchText("https://gcore.jsdelivr.net/gh/" + repo + "@main/shell/latest.json", 6000);
-        if (shellJson == null) shellJson = Utils.fetchText("https://raw.githubusercontent.com/" + repo + "/main/shell/latest.json", 6000);
+        String shellJson = shellManifest(repo);
         String cur = versionName();
         String latest = null, apkUrl = null, note = "";
         if (shellJson == null) note = "取不到外壳清单";
@@ -1289,14 +1353,8 @@ public class MainActivity extends Activity {
 
     private void pushUpdateState() {
         final String repo = "endorphin4/dsh-harness";
-        String shellJson = Utils.fetchText("http://127.0.0.1:8098/shell-latest.json", 2500);
-        if (shellJson == null) shellJson = Utils.fetchText("http://127.0.0.1:8099/shell-latest.json", 4000);
-        if (shellJson == null) shellJson = Utils.fetchText("https://gcore.jsdelivr.net/gh/" + repo + "@main/shell/latest.json", 6000);
-        if (shellJson == null) shellJson = Utils.fetchText("https://raw.githubusercontent.com/" + repo + "/main/shell/latest.json", 6000);
-        String engineJson = Utils.fetchText("http://127.0.0.1:8098/engine-latest.json", 2500);
-        if (engineJson == null) engineJson = Utils.fetchText("http://127.0.0.1:8099/engine-latest.json", 4000);
-        if (engineJson == null) engineJson = Utils.fetchText("https://gcore.jsdelivr.net/gh/" + repo + "@main/engine/latest.json", 6000);
-        if (engineJson == null) engineJson = Utils.fetchText("https://raw.githubusercontent.com/" + repo + "/main/engine/latest.json", 6000);
+        String shellJson = shellManifest(repo);
+        String engineJson = engineManifest(repo);
 
         String appCur = versionName();
         String appLatest = null, apkUrl = null;

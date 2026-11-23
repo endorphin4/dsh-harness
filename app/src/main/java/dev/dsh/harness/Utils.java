@@ -144,6 +144,19 @@ public final class Utils {
     }
 
     /** 取一个 URL 的响应正文；失败返回 null。给「检查更新」这种小请求用。 */
+    /**
+     * 带缓存击穿的取文本：给 URL 追加一个时间戳参数。
+     *
+     * <p>为什么需要：jsDelivr 的 {@code @main} 路径有小时级缓存，发版后更新检查会一直读到旧清单
+     * （2026-11-22 实测：发布 1.0.1 后 CDN 仍返回 1.0.0）。加一个每次不同的查询参数，
+     * 对 CDN 来说就是另一个资源，必然回源。
+     */
+    public static String fetchFresh(String url, int timeoutMs) {
+        if (url == null) return null;
+        String u = url + (url.contains("?") ? "&" : "?") + "dshb=" + System.currentTimeMillis();
+        return fetchText(u, timeoutMs);
+    }
+
     public static String fetchText(String url, int timeoutMs) {
         java.net.HttpURLConnection c = null;
         try {
