@@ -1500,6 +1500,8 @@ final class Rootfs {
             byte[] hdr = new byte[512];
             String longName = null;
             String longLink = null;
+            String paxPath = null;
+            String paxLink = null;
             while (true) {
                 if (!readFully(gz, hdr)) break;
                 if (isZero(hdr)) continue;
@@ -1531,6 +1533,26 @@ final class Rootfs {
                     skipPad(gz, size);
                     continue;
                 }
+                if (type == 'x' || type == 'X') { // PAX 扩展头：下一跳的名字/链接在这里
+                    String body = readBodyString(gz, size);
+                    long restX = size - Math.min(size, 8192);
+                    if (restX > 0) skipN(gz, restX);
+                    skipPad(gz, size);
+                    for (String rec : body.split("\n")) {
+                        int sp = rec.indexOf(' ');
+                        if (sp <= 0) continue;
+                        String kv = rec.substring(sp + 1);
+                        if (kv.startsWith("path=")) paxPath = kv.substring(5);
+                        else if (kv.startsWith("linkpath=")) paxLink = kv.substring(9);
+                    }
+                    continue;
+                }
+                if (type == 'g') { // 全局 PAX 头：跳过
+                    skipBody(gz, size);
+                    continue;
+                }
+                if (paxPath != null) { name = paxPath; paxPath = null; }
+                if (paxLink != null) { link = paxLink; paxLink = null; }
                 if (name.startsWith("./")) name = name.substring(2);
                 if (name.indexOf('\n') >= 0 || name.indexOf('\u0000') >= 0) {
                     throw new IOException("tar 头错位（条目名不可信）：" + name);
